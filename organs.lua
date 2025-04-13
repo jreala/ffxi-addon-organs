@@ -325,8 +325,8 @@ function command_analyze()
     if organ_list:contains(item) then
       if organs_required[item] then
         organs_required[item] = organs_required[item] - inventory_items[item]
-      else
-        organs_required[item] = -inventory_items[item]
+      -- else
+      --   organs_required[item] = -inventory_items[item]
       end
     end
   end
@@ -342,12 +342,15 @@ function command_track(tracking)
   if tracking == 'both' then
     debug('command tracking both')
     settings.tracking = 'both'
+    settings:save()
   elseif tracking == 'gorget' then
     debug('command tracking gorgets')
     settings.tracking = 'gorget'
+    settings:save()
   elseif tracking == 'obi' then
     debug('command tracking obis')
     settings.tracking = 'obi'
+    settings:save()
   end
 end
 
@@ -370,11 +373,12 @@ function command_debug(area)
     settings.debug_area = 'console'
     log('Debugging output is now set to console.')
   end
+  settings:save()
 end
 
 function command_list()
   log('Tracking: ' .. settings.tracking)
-  if (organs_required:length() == 0) then
+  if (not organs_required or organs_required:length() == 0) then
     debug('List run before analyze.')
     command_analyze()
   end
@@ -475,7 +479,7 @@ function get_party_members(local_members)
 end
 
 function table.flatten_and_sum(t, result)
-  result = result or {}
+  result = result or T{}
 
   for key, value in pairs(t) do
     if type(value) == "table" then
