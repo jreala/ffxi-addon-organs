@@ -226,9 +226,7 @@ function command_analyze()
   end
 
   -- reset tables
-  inventory_items = T {}
-  items_needed = T {}
-  organs_required = T {}
+  reset_analysis()
 
   -- build list of items in bags
   for _, storage_name in ipairs(storages_order) do
@@ -344,6 +342,9 @@ function command_track(tracking)
     log('Please specify a tracking method: both, gorgets, or obis.')
     return
   end
+
+  reset_analysis()
+
   if tracking == 'both' then
     debug('command tracking both')
     settings.tracking = 'both'
@@ -454,6 +455,15 @@ function handle_addon_command(args)
 end
 
 -- Helper functions below
+
+function reset_analysis()
+  debug('reset analysis')
+  inventory_items = T {}
+  items_needed = T {}
+  organs_required = T {}
+  has_fotia = false
+  has_hachirin = false
+end
 
 function log(msg)
   if settings.info_area == 'log' or settings.debug then
