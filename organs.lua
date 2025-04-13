@@ -186,17 +186,6 @@ local organs_required = T {}
 local has_fotia = false
 local has_hachirin = false
 
-local participating_characters = nil
-
-local valid_commands = L {
-  "start",
-  "stop",
-  "analyze",
-  "track",
-  "lot",
-  "debug",
-}
-
 local storages_order_tokens = L { 'inventory', 'wardrobe', 'wardrobe 2', 'wardrobe 3', 'wardrobe 4', 'wardrobe 5', 'wardrobe 6', 'wardrobe 7', 'wardrobe 8', 'safe', 'safe 2', 'storage', 'locker', 'satchel', 'sack', 'case' }
 local storages_order = S(res.bags:map(string.gsub - { ' ', '' } .. string.lower .. table.get - { 'english' })):sort(function(
     name1, name2)
@@ -352,10 +341,13 @@ function command_track(tracking)
   end
   if tracking == 'both' then
     debug('command tracking both')
+    settings.tracking = 'both'
   elseif tracking == 'gorget' then
     debug('command tracking gorgets')
+    settings.tracking = 'gorget'
   elseif tracking == 'obi' then
     debug('command tracking obis')
+    settings.tracking = 'obi'
   end
 end
 
@@ -363,13 +355,20 @@ function command_lot()
   debug('lot')
 end
 
-function command_debug()
+function command_debug(area)
   if settings.debug then
     settings.debug = false
     log('Debugging is now disabled.')
   else
     settings.debug = true
     log('Debugging is now enabled.')
+  end
+  if area == 'log' then
+    settings.debug_area = 'log'
+    log('Debugging output is now set to log.')
+  elseif area == 'console' then
+    settings.debug_area = 'console'
+    log('Debugging output is now set to console.')
   end
 end
 
@@ -428,7 +427,7 @@ function handle_addon_command(args)
   elseif cmd == 'list' then
     command_list()
   elseif cmd == 'debug' then
-    command_debug()
+    command_debug(args[1])
   else
     debug('invalid command... ' .. cmd .. ' ' .. args.concat(' '))
   end

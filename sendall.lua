@@ -64,6 +64,5 @@ windower.register_event('ipc message', function(msg)
     elseif cmd == 'execute' and args[1] == player then
         args:remove(1)
         handle_addon_command(args:concat(' '))
-
     end
 end)
