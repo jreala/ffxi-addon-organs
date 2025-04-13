@@ -208,6 +208,7 @@ local storages_order = S(res.bags:map(string.gsub - { ' ', '' } .. string.lower 
 end)
 
 function command_start()
+  debug('command start')
   command_analyze()
   command_list()
 end
@@ -317,6 +318,11 @@ function command_analyze()
   debug('Total organs needed for missing equipment:')
   debug(items_needed:flatten_and_sum())
 
+  if items_needed:length() == 0 then
+    log('No items needed for ' .. settings.tracking)
+    return
+  end
+
   -- create a copy for record keeping
   organs_required = items_needed:copy():flatten_and_sum()
 
@@ -325,8 +331,6 @@ function command_analyze()
     if organ_list:contains(item) then
       if organs_required[item] then
         organs_required[item] = organs_required[item] - inventory_items[item]
-      -- else
-      --   organs_required[item] = -inventory_items[item]
       end
     end
   end
@@ -335,6 +339,7 @@ function command_analyze()
 end
 
 function command_track(tracking)
+  debug('command track')
   if not tracking then
     log('Please specify a tracking method: both, gorgets, or obis.')
     return
@@ -351,11 +356,14 @@ function command_track(tracking)
     debug('command tracking obis')
     settings.tracking = 'obi'
     settings:save()
+  else
+    log('Invalid tracking method. Please specify: both, gorget, or obi.')
+    return
   end
 end
 
 function command_lot()
-  debug('lot')
+  debug('command lot')
 end
 
 function command_debug(area)
@@ -379,7 +387,7 @@ end
 function command_list()
   log('Tracking: ' .. settings.tracking)
   if (not organs_required or organs_required:length() == 0) then
-    debug('List run before analyze.')
+    debug('Command list was run before analyze. Analyzing now...')
     command_analyze()
   end
   log('Organs required: ')
@@ -430,6 +438,14 @@ function handle_addon_command(args)
     command_lot()
   elseif cmd == 'list' then
     command_list()
+  elseif cmd == 'infoarea' then
+    if args[1] == 'log' or args[1] == 'console' then
+      settings.info_area = args[1]
+      settings:save()
+      log('Info area set to ' .. args[1])
+    else
+      log('Invalid info area. Please specify: log or console.')
+    end
   elseif cmd == 'debug' then
     command_debug(args[1])
   else
@@ -455,7 +471,19 @@ function log(msg)
       windower.add_to_chat(80, 'Unknown Debug Message')
     end
   elseif settings.info_area == 'console' then
-    print('organs: ' .. msg)
+    if type(msg) == "table" then
+      for key, value in pairs(msg) do
+        print('    ' .. tostring(key) .. ' : ' .. tostring(value))
+      end
+    elseif type(msg) == "number" then
+      print(tostring(msg))
+    elseif type(msg) == "string" then
+      print(msg)
+    elseif type(msg) == "boolean" then
+      print(tostring(msg))
+    else
+      print('Unknown Debug Message')
+    end
   end
 end
 
@@ -479,7 +507,7 @@ function get_party_members(local_members)
 end
 
 function table.flatten_and_sum(t, result)
-  result = result or T{}
+  result = result or T {}
 
   for key, value in pairs(t) do
     if type(value) == "table" then
