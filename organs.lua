@@ -56,13 +56,13 @@ if settings.send_all_delay > 5 then
   settings.send_all_delay = 5
 end
 
-local organ_list = L {
-  "aern organ",
-  "hpemde organ",
-  "luminian tissue",
-  "phuabo organ",
-  "xzomit organ",
-  "yovra organ",
+local organs = T {
+  ["aern organ"] = 1786,
+  ["hpemde organ"] = 1787,
+  ["luminian tissue"] = 1783,
+  ["phuabo organ"] = 1784,
+  ["xzomit organ"] = 1785,
+  ["yovra organ"] = 1788,
 }
 
 -- Gorgets and their associated costs
@@ -111,18 +111,6 @@ local gorgets = T {
   }
 }
 
-local gorget_list = L {
-  "flame gorget",
-  "soil gorget",
-  "aqua gorget",
-  "breeze gorget",
-  "snow gorget",
-  "thunder gorget",
-  "light gorget",
-  "shadow gorget",
-  "fotia gorget",
-}
-
 -- Obis and their associated costs
 local obis = T {
   ["karin obi"] = T {
@@ -165,18 +153,6 @@ local obis = T {
     ["xzomit organ"] = 3,
     ["luminian tissue"] = 3,
   }
-}
-
-local obi_list = L {
-  "karin obi",
-  "dorin obi",
-  "suirin obi",
-  "furin obi",
-  "hyorin obi",
-  "rairin obi",
-  "korin obi",
-  "anrin obi",
-  "hachirin-no-obi",
 }
 
 -- List of gorgets and obis already obtained
@@ -228,6 +204,10 @@ function command_analyze()
   -- reset tables
   reset_analysis()
 
+  local gorget_list = get_key_list(gorgets)
+  local obi_list = get_key_list(obis)
+  local organ_list = get_key_list(organs)
+
   -- build list of items in bags
   for _, storage_name in ipairs(storages_order) do
     for _, data in ipairs(inventory[storage_name]) do
@@ -235,12 +215,17 @@ function command_analyze()
         if data.id ~= 0 then
           local itemName = res.items[data.id].en:lower()
           -- check for gorgets
-          if (settings.tracking == "both" or settings.tracking == "gorget") and gorget_list:contains(itemName) then
-            if (itemName == "fotia gorget") then
-              debug("Fotia gorget found in inventory.")
-              has_fotia = true
-            end
+          if (itemName == "fotia gorget") then
+            debug("Fotia gorget found in inventory.")
+            has_fotia = true
+          end
 
+          if (itemName == "hachirin-no-obi") then
+            debug("Hachirin-no-obi found in inventory.")
+            has_hachirin = true
+          end
+
+          if (settings.tracking == "both" or settings.tracking == "gorget") and gorget_list:contains(itemName) then
             if inventory_items[itemName] then
               debug("Found " .. itemName .. ", updating inventory_items with count" .. data.count)
               inventory_items[itemName] = inventory_items[itemName] + data.count
@@ -251,11 +236,6 @@ function command_analyze()
           end
           -- check for obis
           if (settings.tracking == "both" or settings.tracking == "obi") and obi_list:contains(itemName) then
-            if (itemName == "hachirin-no-obi") then
-              debug("Hachirin-no-obi found in inventory.")
-              has_hachirin = true
-            end
-
             if inventory_items[itemName] then
               debug("Found " .. itemName .. ", updating inventory_items with count" .. data.count)
               inventory_items[itemName] = inventory_items[itemName] + data.count
@@ -530,4 +510,12 @@ function table.flatten_and_sum(t, result)
   end
 
   return result
+end
+
+function get_key_list(t)
+  local keys = L {}
+  for k, _ in pairs(t) do
+    keys:append(k)
+  end
+  return keys
 end
