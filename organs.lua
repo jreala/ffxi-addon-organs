@@ -30,11 +30,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 _addon.name = "organs"
 _addon.author = "Syzak"
-_addon.version = "0.0.1"
+_addon.version = "2025.04.13.a"
 _addon.commands = { "organs", "obis", "gorgets" }
 
 require("luau")
 require("sendall")
+packets = require('packets')
 
 local defaults = {
   debug = false,
@@ -44,9 +45,11 @@ local defaults = {
   lot_delay = 2,        -- delay in seconds between rolling on an item when it hits the pool
   send_all_delay = 0.5, -- delay in seconds between sending messages to all characters
   tracking = "both",    -- both | obi | gorget
-  command_on_done = "", -- command to run when all items are obtained
+  command_on_done = "", -- command to run when all items are obtained. Not yet implemented
   pass_on_done = true,  -- pass organs once all are obtained for the current tracking method
 }
+
+local isRunning = false
 
 local settings = config.load(defaults)
 if settings.send_all_delay < 0 then
@@ -162,6 +165,22 @@ local organs_required = T {}
 local has_fotia = false
 local has_hachirin = false
 
+local lot_list = L {}
+local pass_list = L {}
+
+local inventory_id = res.bags:with('english', 'Inventory').id
+
+-- borrowed from Treasury
+function act(action, output, id, ...)
+  if settings.debug then
+    debug(output .. ' ' .. res.items[id].name)
+  end
+  windower.ffxi[action]:prepare(...):schedule((math.random() + 1) / 2 * settings.lot_delay)
+end
+
+local pass = act + { 'pass_item', 'Passing' }
+local lot = act + { 'lot_item', 'Lotting' }
+
 local storages_order_tokens = L { 'inventory', 'wardrobe', 'wardrobe 2', 'wardrobe 3', 'wardrobe 4', 'wardrobe 5', 'wardrobe 6', 'wardrobe 7', 'wardrobe 8', 'safe', 'safe 2', 'storage', 'locker', 'satchel', 'sack', 'case' }
 local storages_order = S(res.bags:map(string.gsub - { ' ', '' } .. string.lower .. table.get - { 'english' })):sort(function(
     name1, name2)
@@ -185,16 +204,23 @@ end)
 
 function command_start()
   debug('command start')
+  isRunning = true
   command_analyze()
   command_list()
 end
 
 function command_stop()
   debug('command stop')
+  isRunning = false
 end
 
 function command_analyze()
   debug('command analyze')
+  if not isRunning then
+    log('Please start the addon first.')
+    return
+  end
+
   local inventory = windower.ffxi.get_items()
 
   if not inventory then
@@ -314,6 +340,31 @@ function command_analyze()
   end
   debug('Total organs needed after subtracting inventory: ')
   debug(organs_required)
+
+  -- update lot list
+  if settings.lot then
+    for item in organ_list:it() do
+      if organs_required[item] and organs_required[item] > 0 then
+        debug('Adding ' .. item .. ' to lotting list for ' .. settings.tracking .. ' : ' .. organs[item])
+        lot_list:append(organs[item])
+      end
+    end
+  end
+
+  -- update pass list
+  if settings.pass_on_done then
+    for item in organ_list:it() do
+      if not organs_required[item] or organs_required[item] <= 0 then
+        debug('Adding ' .. item .. ' to passing list for ' .. settings.tracking .. ' : ' .. organs[item])
+        pass_list:append(organs[item])
+      end
+    end
+  end
+
+  debug('Lot list: ')
+  debug(lot_list)
+  debug('pass list: ')
+  debug(pass_list)
 end
 
 function command_track(tracking)
@@ -344,7 +395,13 @@ function command_track(tracking)
 end
 
 function command_lot()
-  debug('command lot')
+  settings.lot = not settings.lot
+  if settings.lot then
+    log('Lotting is now enabled.')
+  else
+    log('Lotting is now disabled.')
+  end
+  settings:save()
 end
 
 function command_debug(area)
@@ -367,10 +424,17 @@ end
 
 function command_list()
   log('Tracking: ' .. settings.tracking)
+  log('Lotting: ' .. tostring(settings.lot))
+
   if (not organs_required or organs_required:length() == 0) then
     debug('Command list was run before analyze. Analyzing now...')
     command_analyze()
   end
+
+  if not isRunning then
+    return
+  end
+
   log('Organs required: ')
   log(organs_required)
 end
@@ -434,15 +498,57 @@ function handle_addon_command(args)
   end
 end
 
--- Helper functions below
+windower.register_event('incoming chunk', function(id, data)
+  if not isRunning then
+    return
+  end
 
+  if id == 0x0D2 then                                        -- found item packet
+    local treasure = packets.parse('incoming', data)
+    check_treasure_conditions(treasure.Index, treasure.Item) -- pool index, item id
+  elseif id == 0x020 then                                    -- item update packet
+    local chunk = packets.parse('incoming', data)
+
+    -- Ignore items in other bags
+    if chunk.Bag ~= inventory_id then
+      return
+    end
+
+    if id == 0x020 and chunk.Status == 0 then
+      -- handle the items needed update logic here
+      if lot_list:contains(chunk.Item) then
+        local item_name = organs:find(chunk.Item)
+        debug('Obtained ' .. chunk.Count .. ' ' .. item_name .. '.')
+        organs_required[item_name] = organs_required[item_name] - chunk.Count
+        log('Updated organs_required: ')
+        log(organs_required)
+      end
+    end
+  end
+end)
+
+-- Helper functions below
 function reset_analysis()
   debug('reset analysis')
   inventory_items = T {}
   items_needed = T {}
   organs_required = T {}
+  lot_list = L {}
+  pass_list = L {}
   has_fotia = false
   has_hachirin = false
+end
+
+-- borrowed from Treasury
+function check_treasure_conditions(slot_index, item_id)
+  if (pass_list:contains(item_id)) and not lot_list:contains(item_id) then
+    pass(item_id, slot_index)
+  elseif lot_list:contains(item_id) then
+    local inventory = windower.ffxi.get_items(inventory_id)
+    if inventory.max - inventory.count > 1 then
+      lot(item_id, slot_index)
+    end
+  end
 end
 
 function log(msg)
