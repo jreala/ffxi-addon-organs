@@ -1,9 +1,12 @@
-# README
+# FFXI Organs Addon
 
-Work in Progress
+Easily identify which organs are required for Fotia Gorget and Hachirin-no-Obi.
 
-## Organs
-### Commands
+Has the capability to auto lot the missing organs and auto pass on any organs that are already finished.
+
+Designed with multiboxing in mind.
+
+## Commands
 
 <pre>
 Usage: organs [OPTIONS] [COMMAND]
@@ -29,6 +32,7 @@ Commands:
   list          List needed organs. This value is cached from when analyze runs and could potentialy be stale.
   infoarea      Specify chat log or console for info logs.
   debug         Enable debug logs.
+  hud           Shows the visual HUD
 
 Command: track
 Usage: organs [OPTIONS] track [TYPE]
