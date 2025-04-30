@@ -30,12 +30,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 _addon.name = "organs"
 _addon.author = "Syzak"
-_addon.version = "2025.04.13.a"
+_addon.version = "2025.04.29.a" -- YYYY.MM.DD
 _addon.commands = { "organs", "obis", "gorgets" }
 
 require("luau")
 require("sendall")
 packets = require('packets')
+texts = require('texts')
 
 local defaults = {
   debug = false,
@@ -47,16 +48,44 @@ local defaults = {
   tracking = "both",    -- both | obi | gorget
   command_on_done = "", -- command to run when all items are obtained. Not yet implemented
   pass_on_done = true,  -- pass organs once all are obtained for the current tracking method
+  show_hud = true,
+  hud = {
+    text = {
+      size = 10,
+      font = 'Consolas',
+      red = 255,
+      green = 255,
+      blue = 255,
+      alpha = 255
+    },
+    pos = {
+      x = 0,
+      y = 0,
+    },
+    bg = {
+      visible = true,
+      red = 0,
+      green = 0,
+      blue = 0,
+      alpha = 0
+    },
+  },
 }
 
 local isRunning = false
 
 local settings = config.load(defaults)
+
+local hud = texts.new("", settings.hud)
+
 if settings.send_all_delay < 0 then
   settings.send_all_delay = 0
 end
 if settings.send_all_delay > 5 then
   settings.send_all_delay = 5
+end
+if settings.show_hud then
+  hud:show()
 end
 
 local organs = T {
@@ -169,6 +198,26 @@ local lot_list = L {}
 local pass_list = L {}
 
 local inventory_id = res.bags:with('english', 'Inventory').id
+
+function hud_update()
+  debug('Updating hud')
+  local width = 20
+  local lines = T {}
+  lines:insert(' Organs Required: ' .. settings.tracking .. ' ')
+  lines:insert(' --------------------')
+  for k, v, a in pairs(organs_required) do
+    if v > 0 then
+      lines:insert(' ' .. k .. ': ' .. string.format('-> %s ', tostring(v):lpad(' ', 2)):lpad(' ', width - string.len(tostring(k)) + 2))
+    end
+  end
+  if lines:length() < 3 then
+    lines:insert(' Complete!')
+  end
+  -- local maxWidth = math.max(1, table.reduce(lines, function(a, b) return math.max(a, #b) end, '1'))
+  -- -- Pad each entry
+  -- for i, line in ipairs(lines) do lines[i] = lines[i]:rpad(' ', maxWidth) end
+  hud:text(lines:concat('\n'))
+end
 
 -- borrowed from Treasury
 function act(action, output, id, ...)
@@ -324,6 +373,7 @@ function command_analyze()
 
   if items_needed:length() == 0 then
     log('No items needed for ' .. settings.tracking)
+    hud_update()
     return
   end
 
@@ -361,6 +411,8 @@ function command_analyze()
     end
   end
 
+  hud_update()
+
   debug('Lot list: ')
   debug(lot_list)
   debug('pass list: ')
@@ -392,6 +444,8 @@ function command_track(tracking)
     log('Invalid tracking method. Please specify: both, gorget, or obi.')
     return
   end
+  command_analyze()
+
 end
 
 function command_lot()
@@ -493,6 +547,16 @@ function handle_addon_command(args)
     end
   elseif cmd == 'debug' then
     command_debug(args[1])
+  elseif cmd == 'hud' then
+    settings.show_hud = not settings.show_hud
+    if settings.show_hud then
+      hud:show()
+      log('HUD is now visible.')
+    else
+      hud:hide()
+      log('HUD is now hidden.')
+    end
+    settings:save()
   else
     debug('invalid command... ' .. cmd .. ' ' .. args.concat(' '))
   end
@@ -522,6 +586,7 @@ windower.register_event('incoming chunk', function(id, data)
         organs_required[item_name] = organs_required[item_name] - chunk.Count
         log('Updated organs_required: ')
         log(organs_required)
+        hud_update()
       end
     end
   end
