@@ -30,7 +30,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 _addon.name = "organs"
 _addon.author = "Syzak"
-_addon.version = "2025.04.29.a" -- YYYY.MM.DD
+_addon.version = "2025.06.22.a" -- YYYY.MM.DD
 _addon.commands = { "organs", "obis", "gorgets" }
 
 require("luau")
@@ -199,6 +199,8 @@ local pass_list = L {}
 
 local inventory_id = res.bags:with('english', 'Inventory').id
 
+local obtained_new_item = nil
+
 function hud_update()
   debug('Updating hud')
   local width = 20
@@ -207,7 +209,15 @@ function hud_update()
   lines:insert(' --------------------')
   for k, v, a in pairs(organs_required) do
     if v > 0 then
-      lines:insert(' ' .. k .. ': ' .. string.format('-> %s ', tostring(v):lpad(' ', 2)):lpad(' ', width - string.len(tostring(k)) + 2))
+      if obtained_new_item and k == obtained_new_item then
+        lines:insert(' \\cs(155, 0, 0)' ..
+        k ..
+        ': ' ..
+        string.format('-> %s ', tostring(v):lpad(' ', 2)):lpad(' ', width - string.len(tostring(k)) + 2) .. ' (new!)\\cr')
+      else
+        lines:insert(' ' ..
+        k .. ': ' .. string.format('-> %s ', tostring(v):lpad(' ', 2)):lpad(' ', width - string.len(tostring(k)) + 2))
+      end
     end
   end
   if lines:length() < 3 then
@@ -217,6 +227,10 @@ function hud_update()
   -- -- Pad each entry
   -- for i, line in ipairs(lines) do lines[i] = lines[i]:rpad(' ', maxWidth) end
   hud:text(lines:concat('\n'))
+  if obtained_new_item then
+    obtained_new_item = nil
+    coroutine.schedule(hud_update, 5)
+  end
 end
 
 -- borrowed from Treasury
@@ -445,7 +459,6 @@ function command_track(tracking)
     return
   end
   command_analyze()
-
 end
 
 function command_lot()
@@ -520,9 +533,9 @@ windower.register_event('addon command', function(...)
   handle_addon_command(args:concat(' '))
 end)
 
-function handle_addon_command(args)
-  local args = args:split(' ')
-  local cmd = args[1]
+function handle_addon_command(params)
+  local args = params:split(' ')
+  local cmd = args[1] or nil
   args:remove(1)
 
   if cmd == 'start' then
@@ -557,8 +570,23 @@ function handle_addon_command(args)
       log('HUD is now hidden.')
     end
     settings:save()
+  elseif cmd == 'help' then
+    log('Available commands:')
+    log('  start - Start the addon')
+    log('  stop - Stop the addon')
+    log('  analyze - Analyze inventory for organs')
+    log('  track [both|gorget|obi] - Set tracking method')
+    log('  lot - Toggle lotting on/off')
+    log('  list - List organs required for tracking')
+    log('  infoarea [log|console] - Set info area for messages')
+    log('  debug [log|console] - Toggle debugging and set debug area')
+    log('  hud - Toggle HUD visibility')
   else
-    debug('invalid command... ' .. cmd .. ' ' .. args.concat(' '))
+    if not cmd then
+      log('Please specify a command.')
+      return
+    end
+    debug('invalid command... ' .. params)
   end
 end
 
@@ -584,9 +612,15 @@ windower.register_event('incoming chunk', function(id, data)
         local item_name = organs:find(chunk.Item)
         debug('Obtained ' .. chunk.Count .. ' ' .. item_name .. '.')
         organs_required[item_name] = organs_required[item_name] - chunk.Count
-        log('Updated organs_required: ')
-        log(organs_required)
+        debug('Updated organs_required: ')
+        debug(organs_required)
+        obtained_new_item = item_name
         hud_update()
+        if organs_required[item_name] <= 0 then
+          log('You have obtained all ' .. item_name .. ' needed for ' .. settings.tracking .. '.')
+          lot_list:remove(chunk.Item)
+          pass_list:append(chunk.Item)
+        end
       end
     end
   end
@@ -606,7 +640,7 @@ end
 
 -- borrowed from Treasury
 function check_treasure_conditions(slot_index, item_id)
-  if (pass_list:contains(item_id)) and not lot_list:contains(item_id) then
+  if (pass_list:contains(item_id)) then
     pass(item_id, slot_index)
   elseif lot_list:contains(item_id) then
     local inventory = windower.ffxi.get_items(inventory_id)
